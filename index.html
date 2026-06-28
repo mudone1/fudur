@@ -56,6 +56,8 @@ a{color:var(--orange);text-decoration:none}
 .page{display:none;min-height:100vh;padding-bottom:calc(var(--bottom-h) + 20px)}
 .page.active{display:block}
 .page-noscroll{overflow:hidden}
+#page-chat{display:none;flex-direction:column;height:100vh;overflow:hidden;padding-bottom:0}
+#page-chat.active{display:flex}
 .container{max-width:480px;margin:0 auto;padding:0 16px}
 .section{padding:32px 0}
 
@@ -237,7 +239,7 @@ a{color:var(--orange);text-decoration:none}
    PAGE: CHAT
 ══════════════════════════════════ */
 #page-chat{padding-bottom:0}
-.chat-header-ext{background:#fff;border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px}
+.chat-header-ext{background:#fff;border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
 .chat-header-ext .ch-info{flex:1}
 .chat-header-ext .ch-title{font-size:14px;font-weight:600}
 .chat-header-ext .ch-sub{font-size:12px;color:var(--muted)}
@@ -246,7 +248,7 @@ a{color:var(--orange);text-decoration:none}
 .chat-action-btn.call{background:var(--green-light);border-color:var(--green);color:var(--green)}
 .chat-action-btn.msg{background:var(--orange-light);border-color:var(--orange);color:var(--orange)}
 .chat-messages{padding:12px 16px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;min-height:0}
-.chat-container{display:flex;flex-direction:column;height:calc(100vh - var(--nav-h) - 44px - 64px - 70px - var(--bottom-h))}
+.chat-container{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
 .chat-system{text-align:center;font-size:12px;color:var(--muted);padding:6px 12px;background:var(--gray);border-radius:20px;display:inline-block;margin:0 auto}
 .chat-msg-wrap{display:flex;flex-direction:column}
 .chat-msg-wrap.me{align-items:flex-end}
@@ -259,11 +261,12 @@ a{color:var(--orange);text-decoration:none}
 .chat-meta{font-size:11px;color:var(--muted);margin-top:3px}
 .chat-name{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:3px}
 .driver-label{font-size:11px;font-weight:600;color:var(--green);margin-bottom:3px}
-.chat-input-area{background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;align-items:flex-end}
+.chat-input-area{background:#fff;border-top:1px solid var(--border);padding:10px 14px;display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
 .chat-input-area textarea{flex:1;border:1px solid var(--border);border-radius:20px;padding:10px 16px;font-size:14px;resize:none;max-height:100px;min-height:40px;line-height:1.5}
 .chat-input-area textarea:focus{border-color:var(--orange)}
 .send-btn{width:40px;height:40px;border-radius:50%;background:var(--orange);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.chat-tabs{display:flex;border-bottom:1px solid var(--border);background:#fff}
+.chat-tabs{display:flex;border-bottom:1px solid var(--border);background:#fff;flex-shrink:0}
+#tab-group,#tab-driver{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}
 .chat-tab{flex:1;padding:12px;font-size:14px;font-weight:500;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:.15s}
 .chat-tab.active{color:var(--orange);border-bottom-color:var(--orange)}
 
@@ -653,8 +656,12 @@ a{color:var(--orange);text-decoration:none}
       ? rideId + '_group'
       : rideId + '_driver_' + (window._currentUid || 'anon');
 
-    // Optimistic clear
+    // Optimistic clear + hide empty state
     if (inputEl) { inputEl.value = ''; inputEl.style.height = 'auto'; }
+    const emptyGroup = document.getElementById('chat-empty-group');
+    const emptyDriver = document.getElementById('chat-empty-driver');
+    if(emptyGroup) emptyGroup.style.display='none';
+    if(emptyDriver) emptyDriver.style.display='none';
 
     try {
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
@@ -672,6 +679,11 @@ a{color:var(--orange);text-decoration:none}
 
   // ── RENDER A SINGLE MESSAGE ──────────────────────────────────────────────
   function renderFirebaseMessage(container, msg, isMe, isDriver) {
+    // Hide empty state placeholder
+    const emptyGroup = document.getElementById('chat-empty-group');
+    const emptyDriver = document.getElementById('chat-empty-driver');
+    if(emptyGroup) emptyGroup.style.display='none';
+    if(emptyDriver) emptyDriver.style.display='none';
     const wrap = document.createElement('div');
     wrap.className = 'chat-msg-wrap ' + (isMe ? 'me' : isDriver ? 'driver' : 'them');
 
@@ -1162,12 +1174,12 @@ a{color:var(--orange);text-decoration:none}
      PAGE: CHAT
 ══════════════════════════════ -->
 <div id="page-chat" class="page">
-  <nav class="top-nav">
+  <nav class="top-nav" style="position:relative;flex-shrink:0">
     <button class="nav-back" onclick="goBack()"><i class="ti ti-arrow-left"></i></button>
     <span class="nav-title">Chats</span>
     <div class="nav-action"></div>
   </nav>
-  <div class="chat-tabs">
+  <div class="chat-tabs" style="flex-shrink:0">
     <button class="chat-tab active" onclick="switchChatTab(this,'tab-group')">Ride group</button>
     <button class="chat-tab" onclick="switchChatTab(this,'tab-driver')">Driver chat</button>
   </div>
@@ -1215,15 +1227,13 @@ a{color:var(--orange);text-decoration:none}
     </div>
     <div class="chat-container">
       <div class="chat-messages" id="chat-messages-driver">
-        <div style="display:flex;justify-content:center"><div class="chat-system">Direct chat with your driver</div></div>
-        <div class="chat-msg-wrap me">
-          <div class="chat-bubble me">Hi Musa, which side of Total petrol station should I wait?</div>
-          <div class="chat-meta">7:06 AM</div>
+        <div style="display:flex;justify-content:center">
+          <div class="chat-system">Direct chat with your driver</div>
         </div>
-        <div class="chat-msg-wrap driver">
-          <div class="driver-label">🚗 Musa</div>
-          <div class="chat-bubble driver">The entrance closest to the road. I'll hoot once 👍</div>
-          <div class="chat-meta">7:07 AM</div>
+        <div id="chat-empty-driver" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 16px;text-align:center;gap:8px">
+          <i class="ti ti-message-circle" style="font-size:44px;color:var(--gray2)"></i>
+          <p style="font-size:14px;font-weight:600;color:var(--muted)">No messages yet</p>
+          <p style="font-size:13px;color:var(--muted)">Ask your driver about the pickup point or any questions before departure.</p>
         </div>
       </div>
       <div class="chat-input-area">
@@ -1790,8 +1800,13 @@ function showPage(id){
   if(!pageHistory.length || pageHistory[pageHistory.length-1] !== id) pageHistory.push(id);
   const loggedInPages = ['page-home','page-driver-home','page-find','page-chat','page-profile'];
   const bnav = document.getElementById('bottom-nav');
-  if(loggedInPages.includes(id)){ bnav.classList.remove('no-show'); updateNav(id); }
-  else bnav.classList.add('no-show');
+  if(loggedInPages.includes(id)){
+    // Hide bottom nav on chat page so it doesn't push up the input
+    if(id === 'page-chat'){ bnav.classList.add('no-show'); }
+    else { bnav.classList.remove('no-show'); updateNav(id); }
+  } else {
+    bnav.classList.add('no-show');
+  }
   // Fire event so Firebase module can react (e.g. load chat)
   document.dispatchEvent(new CustomEvent('fudur:page-changed', { detail: id }));
   // Auto-load Firebase chat when entering chat page
@@ -1909,7 +1924,13 @@ function switchChatTab(btn,tabId){
   btn.classList.add('active');
   document.getElementById('tab-group').style.display='none';
   document.getElementById('tab-driver').style.display='none';
-  document.getElementById(tabId).style.display='block';
+  document.getElementById(tabId).style.display='flex';
+  // Load Firebase chat for the selected tab
+  if(window._fb && window._fb.loadChat){
+    const rideId = window._activeRideId || 'demo-ride-001';
+    const type = tabId === 'tab-group' ? 'group' : 'driver';
+    window._fb.loadChat(rideId, type);
+  }
 }
 
 function showModal(id){ document.getElementById(id).classList.add('open'); }
