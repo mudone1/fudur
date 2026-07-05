@@ -10,8 +10,9 @@ import {
 import {
   GoogleAuthProvider,
   User,
+  getRedirectResult,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
@@ -43,6 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Catches errors from a just-completed signInWithRedirect (e.g. this
+    // exact "missing initial state" class of error) so they're not silently
+    // swallowed — onAuthStateChanged below won't fire at all if the redirect
+    // failed.
+    getRedirectResult(auth).catch((err) => {
+      setError(
+        err instanceof Error ? `Could not sign in: ${err.message}` : "Could not sign in"
+      );
+    });
+
     const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -79,13 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthBusy(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // onAuthStateChanged fires next and loads/creates the profile.
+      await signInWithRedirect(auth, provider);
+      // Page navigates away to Google, then back — onAuthStateChanged and
+      // getRedirectResult (above) pick it up on return.
     } catch (err) {
       setError(
         err instanceof Error ? `Could not sign in: ${err.message}` : "Could not sign in"
       );
-    } finally {
       setAuthBusy(false);
     }
   }, []);
