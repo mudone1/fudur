@@ -5,15 +5,13 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import {
-  ConfirmationResult,
-  RecaptchaVerifier,
+  GoogleAuthProvider,
   User,
   onAuthStateChanged,
-  signInWithPhoneNumber,
+  signInWithPopup,
   signOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
@@ -23,30 +21,19 @@ interface AuthContextValue {
   firebaseUser: User | null;
   profile: UserProfile | null;
   loading: boolean; // initial auth-state resolution
-  authBusy: boolean; // sending/verifying OTP, saving profile
+  authBusy: boolean; // signing in, saving profile
   error: string | null;
   clearError: () => void;
-  sendOtp: (rawPhone: string) => Promise<void>;
-  verifyOtp: (code: string) => Promise<void>;
-  resetPhoneStep: () => void;
+  signInWithGoogle: () => Promise<void>;
   completeProfile: (params: {
     name: string;
     area: string;
     type: AccountType;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  otpSentTo: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-/** Normalizes a Nigerian phone number to +234 E.164 form. */
-function formatNigerianPhone(raw: string): string {
-  let formatted = raw.replace(/\s+/g, "");
-  if (formatted.startsWith("0")) formatted = "+234" + formatted.slice(1);
-  if (!formatted.startsWith("+")) formatted = "+234" + formatted;
-  return formatted;
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -54,10 +41,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otpSentTo, setOtpSentTo] = useState<string | null>(null);
-
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -91,76 +74,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
-  const sendOtp = useCallback(async (rawPhone: string) => {
+  const signInWithGoogle = useCallback(async () => {
     setError(null);
-    if (!rawPhone.trim()) {
-      setError("Enter your phone number");
-      return;
-    }
-    const formatted = formatNigerianPhone(rawPhone);
-setAuthBusy(true);
-try {
-  if (recaptchaRef.current) {
-    // Stale widget from a previous render/HMR cycle — clear it first.
-    try {
-      recaptchaRef.current.clear();
-    } catch {
-      /* already gone, ignore */
-    }
-    recaptchaRef.current = null;
-    const container = document.getElementById("recaptcha-container");
-    if (container) container.innerHTML = "";
-  }
-  recaptchaRef.current = new RecaptchaVerifier(
-    auth,
-    "recaptcha-container",
-    { size: "invisible", callback: () => {} }
-  );
-  const confirmation = await signInWithPhoneNumber(
-        auth,
-        formatted,
-        recaptchaRef.current
-      );
-      confirmationRef.current = confirmation;
-      setOtpSentTo(formatted);
-    } catch (err) {
-      recaptchaRef.current?.clear();
-      recaptchaRef.current = null;
-      setError(
-        err instanceof Error ? `Could not send OTP: ${err.message}` : "Could not send OTP"
-      );
-    } finally {
-      setAuthBusy(false);
-    }
-  }, []);
-
-  const verifyOtp = useCallback(async (code: string) => {
-    setError(null);
-    if (!code || code.length < 6) {
-      setError("Enter the 6-digit OTP");
-      return;
-    }
-    if (!confirmationRef.current) {
-      setError("Request a new OTP first");
-      return;
-    }
     setAuthBusy(true);
     try {
-      await confirmationRef.current.confirm(code);
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       // onAuthStateChanged fires next and loads/creates the profile.
-    } catch {
-      setError("Wrong OTP — try again");
+    } catch (err) {
+      setError(
+        err instanceof Error ? `Could not sign in: ${err.message}` : "Could not sign in"
+      );
     } finally {
       setAuthBusy(false);
     }
-  }, []);
-
-  const resetPhoneStep = useCallback(() => {
-    recaptchaRef.current?.clear();
-    recaptchaRef.current = null;
-    confirmationRef.current = null;
-    setOtpSentTo(null);
-    setError(null);
   }, []);
 
   const completeProfile = useCallback(
@@ -222,16 +149,12 @@ try {
         authBusy,
         error,
         clearError,
-        sendOtp,
-        verifyOtp,
-        resetPhoneStep,
+        signInWithGoogle,
         completeProfile,
         logout,
-        otpSentTo,
       }}
     >
       {children}
-      <div id="recaptcha-container" />
     </AuthContext.Provider>
   );
 }
@@ -241,3 +164,4 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+

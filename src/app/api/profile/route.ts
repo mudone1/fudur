@@ -38,7 +38,8 @@ export async function POST(request: Request) {
 
   const profile: Record<string, unknown> = {
     uid: decoded.uid,
-    phone: decoded.phone_number ?? null,
+    email: decoded.email ?? null,
+    phone: existing.exists ? existing.data()?.phone ?? null : null,
     name,
     area,
     type,

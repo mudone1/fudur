@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     userRef,
     {
       uid: decoded.uid,
-      phone: decoded.phone_number ?? body.phone ?? null,
+      phone: body.phone ?? null,
       name: `${body.firstName} ${body.lastName}`.trim(),
       type: "driver",
       rating: 5.0,

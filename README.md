@@ -8,7 +8,7 @@ proper Next.js 15 + TypeScript + Tailwind + Firebase app.
 - **Phase 1 — Foundation + Auth + Driver flow** ✅
   - Next.js 15 App Router, TypeScript, Tailwind theme carrying over the
     original brand tokens (orange `#F05A00`, green `#4A7C2F`).
-  - Firebase Phone OTP auth (`RecaptchaVerifier` + `signInWithPhoneNumber`),
+  - Firebase **Google Sign-In** (`signInWithPopup` + `GoogleAuthProvider`),
     `AuthContext`, complete-profile step for new numbers.
   - `/driver/register` (4-step wizard), `/driver/dashboard`,
     `/driver/earnings`, plus `/driver/notifications` and `/driver/profile`
@@ -50,8 +50,10 @@ The original `page-register-driver` step 1 collected email **and password**,
 as if driver signup were a separate auth mechanism. Since the app's only real
 auth mechanism (here and in the prototype) is phone OTP, the rebuilt wizard
 drops the password field and requires the visitor to already be
-phone-verified before starting the wizard (redirects to `/login` otherwise).
-Email is kept as an optional contact field.
+signed in with Google before starting the wizard (redirects to `/login`
+otherwise). Phone number is kept as a plain contact field the driver fills
+in themselves (not verified via SMS, since that's the Blaze-only feature
+we moved away from).
 
 ## Simplifications worth knowing about
 
@@ -73,7 +75,11 @@ npm run dev
 
 ### Firebase project setup (fudur-18485)
 
-1. **Authentication** → Sign-in method → enable **Phone**.
+1. **Authentication** → Sign-in method → enable **Google**. (Switched from
+   Phone OTP because Phone auth requires the Blaze billing plan; Google
+   Sign-In works on the free Spark plan.) You'll need to add your local dev
+   origin (`http://localhost:3000`) and your Vercel domain to the OAuth
+   "Authorized domains" list under Authentication → Settings.
 2. **Firestore** → create in production mode. Collections used so far:
    - `users/{uid}` — `{ uid, phone, name, area, type, rating, trips, createdAt }`
    - `driverApplications/{uid}` — full application payload + `status`

@@ -2,6 +2,7 @@ export type AccountType = "rider" | "driver";
 
 export interface UserProfile {
   uid: string;
+  email: string | null;
   phone: string | null;
   name: string;
   area: string;
