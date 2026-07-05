@@ -98,16 +98,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const formatted = formatNigerianPhone(rawPhone);
-    setAuthBusy(true);
+setAuthBusy(true);
+try {
+  if (recaptchaRef.current) {
+    // Stale widget from a previous render/HMR cycle — clear it first.
     try {
-      if (!recaptchaRef.current) {
-        recaptchaRef.current = new RecaptchaVerifier(
-          auth,
-          "recaptcha-container",
-          { size: "invisible", callback: () => {} }
-        );
-      }
-      const confirmation = await signInWithPhoneNumber(
+      recaptchaRef.current.clear();
+    } catch {
+      /* already gone, ignore */
+    }
+    recaptchaRef.current = null;
+    const container = document.getElementById("recaptcha-container");
+    if (container) container.innerHTML = "";
+  }
+  recaptchaRef.current = new RecaptchaVerifier(
+    auth,
+    "recaptcha-container",
+    { size: "invisible", callback: () => {} }
+  );
+  const confirmation = await signInWithPhoneNumber(
         auth,
         formatted,
         recaptchaRef.current
