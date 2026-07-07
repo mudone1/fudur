@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Everything except chat is written exclusively through Next.js API
+    // routes using the Admin SDK, which bypasses these rules entirely.
+    // So the client SDK never needs direct access to users/routes/bookings/
+    // driverApplications/trips — deny by default, keeps things simple and
+    // safe even if a client bug tries to write directly.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Chat is the one exception: it's realtime, so it's written straight
+    // from the client via onSnapshot/addDoc (see src/app/trip/[bookingId]/chat).
+    //
+    // Simplification: any signed-in user can read/write any ride's chat
+    // thread, not just actual participants of that specific ride. This is
+    // fine for an MVP (you have to already know the exact bookingId/routeId
+    // to construct the right path, and the UI never exposes other rides'
+    // IDs to you) but isn't real per-ride access control. Tightening this
+    // properly needs either a Cloud Function trigger to stamp participant
+    // UIDs onto each thread doc, or moving chat writes behind an API route
+    // like everything else — worth doing before this handles real traffic.
+    match /routeChats/{threadId}/messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    match /directChats/{threadId}/messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
