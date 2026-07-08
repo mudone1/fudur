@@ -15,12 +15,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
 
-  const tripsSnap = await adminDb
-    .collection("trips")
-    .where("driverUid", "==", decoded.uid)
-    .orderBy("completedAt", "desc")
-    .limit(50)
-    .get();
+  let tripsSnap;
+  try {
+    tripsSnap = await adminDb
+      .collection("trips")
+      .where("driverUid", "==", decoded.uid)
+      .orderBy("completedAt", "desc")
+      .limit(50)
+      .get();
+  } catch (err) {
+    console.error("driver/earnings query failed (likely missing composite index):", err);
+    return NextResponse.json({
+      summary: { today: 0, thisWeek: 0, thisMonth: 0, totalTrips: 0, totalPassengers: 0, avgRating: 5.0 },
+      tripLog: [],
+      indexPending: true,
+    });
+  }
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

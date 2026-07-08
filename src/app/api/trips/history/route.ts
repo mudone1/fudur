@@ -9,12 +9,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
 
-  const snap = await adminDb
-    .collection("trips")
-    .where("riderUid", "==", decoded.uid)
-    .orderBy("completedAt", "desc")
-    .limit(10)
-    .get();
+  let snap;
+  try {
+    snap = await adminDb
+      .collection("trips")
+      .where("riderUid", "==", decoded.uid)
+      .orderBy("completedAt", "desc")
+      .limit(10)
+      .get();
+  } catch (err) {
+    // Most likely cause: the composite index (riderUid + completedAt) hasn't
+    // been created yet. Log the real Firestore error — it contains a direct
+    // "create index" link — instead of crashing the request for the user.
+    console.error("trips/history query failed (likely missing composite index):", err);
+    return NextResponse.json({ trips: [], indexPending: true });
+  }
 
   const trips = await Promise.all(
     snap.docs.map(async (doc) => {
