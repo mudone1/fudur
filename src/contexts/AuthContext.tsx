@@ -14,6 +14,7 @@ import {
   User,
   getRedirectResult,
   onAuthStateChanged,
+  signInWithPopup,
   signInWithRedirect,
   signOut,
 } from "firebase/auth";
@@ -79,25 +80,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  function routeAfterSignIn(loadedProfile: UserProfile | null) {
+    if (!loadedProfile?.name) {
+      router.replace("/complete-profile");
+    } else {
+      router.replace(loadedProfile.type === "driver" ? "/driver/dashboard" : "/rider/home");
+    }
+  }
+
   useEffect(() => {
-    // Resolves a just-completed signInWithRedirect round trip. This runs
-    // once per app load. On success we explicitly route to the right place
-    // ourselves — we don't rely on whichever page the browser happens to
-    // land back on after the OAuth round trip, since that's not always the
-    // page that initiated sign-in (varies by browser). On failure, we route
-    // to /login so the error is actually visible instead of failing silently
-    // on whatever page the user lands on.
+    // Resolves a just-completed signInWithRedirect round trip, for browsers
+    // where the popup approach below got blocked and fell back to redirect.
+    // This can itself fail in browsers/modes with restricted storage (some
+    // privacy browsers, certain mobile in-app webviews) — if so, the error
+    // is surfaced here rather than failing silently.
     getRedirectResult(auth)
       .then(async (result) => {
         handledRedirectRef.current = true;
         if (!result) return; // no redirect was pending — normal page load
         const idToken = await result.user.getIdToken();
         const loadedProfile = await fetchProfile(idToken);
-        if (!loadedProfile?.name) {
-          router.replace("/complete-profile");
-        } else {
-          router.replace(loadedProfile.type === "driver" ? "/driver/dashboard" : "/rider/home");
-        }
+        routeAfterSignIn(loadedProfile);
       })
       .catch((err) => {
         handledRedirectRef.current = true;
@@ -124,13 +127,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     setAuthBusy(true);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+
     try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      await signInWithRedirect(auth, provider);
-      // Page navigates away to Google, then back — the effect above picks
-      // it up via getRedirectResult on the next load.
+      // Popup is tried first: it doesn't depend on browser storage
+      // surviving a full page navigation away and back, which is where
+      // the redirect flow has been failing (blocked/partitioned storage,
+      // "missing initial state", "heartbeats undefined", etc. are all
+      // symptoms of that same underlying class of problem).
+      const result = await signInWithPopup(auth, provider);
+      const idToken = await result.user.getIdToken();
+      const loadedProfile = await fetchProfile(idToken);
+      routeAfterSignIn(loadedProfile);
+      setAuthBusy(false);
     } catch (err) {
+      const code = (err as { code?: string })?.code;
+      const shouldFallBackToRedirect =
+        code === "auth/popup-blocked" ||
+        code === "auth/operation-not-supported-in-this-environment" ||
+        code === "auth/cancelled-popup-request";
+
+      if (code === "auth/popup-closed-by-user") {
+        // User closed the popup themselves — not an error, just reset.
+        setAuthBusy(false);
+        return;
+      }
+
+      if (shouldFallBackToRedirect) {
+        try {
+          await signInWithRedirect(auth, provider);
+          // Page navigates away — getRedirectResult (above) picks it up on return.
+        } catch (redirectErr) {
+          setError(friendlyAuthError(redirectErr));
+          setAuthBusy(false);
+        }
+        return;
+      }
+
       setError(friendlyAuthError(err));
       setAuthBusy(false);
     }
